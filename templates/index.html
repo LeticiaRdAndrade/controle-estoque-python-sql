@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle de Estoque Inteligente</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
+        .container { max-width: 1100px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0px 0px 15px rgba(0,0,0,0.05); margin: 0 auto; }
+        h2, h3 { color: #2c3e50; margin-top: 0; }
+        
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        input, select, textarea { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        textarea { grid-column: 1 / -1; height: 60px; resize: none; }
+        
+        button, .btn-link { padding: 12px 20px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; }
+        .btn-salvar { background-color: #007bff; color: white; width: 100%; }
+        .btn-salvar:hover { background-color: #0056b3; }
+        .btn-buscar { background-color: #28a745; color: white; }
+        .btn-buscar:hover { background-color: #218838; }
+        .btn-todos { background-color: #17a2b8; color: white; }
+        .btn-todos:hover { background-color: #138496; }
+        .btn-limpar { background-color: #6c757d; color: white; }
+        
+        .tabela-container { overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background-color: #343a40; color: white; }
+        tr:hover { background-color: #f8f9fa; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; text-transform: uppercase; }
+        .entrada { background-color: #d4edda; color: #155724; }
+        .saida { background-color: #f8d7da; color: #721c24; }
+        .status-badge { background-color: #e2e3e5; color: #383d41; }
+        
+        .busca-container { margin: 20px 0; display: flex; gap: 10px; align-items: center; }
+        .input-busca { max-width: 350px; }
+        hr { border: 0; height: 1px; background: #ddd; margin: 30px 0; }
+
+        /* Cores do saldo separadas aqui para o VS Code não chiar */
+        .saldo-positivo { font-weight: bold; font-size: 16px; color: #28a745; text-align: center; }
+        .saldo-zerado { font-weight: bold; font-size: 16px; color: #dc3545; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📦 Controle de Estoque por Etiqueta (Patrimônio TI)</h2>
+    <p style="color: #7f8c8d; margin-bottom: 25px;">Cadastre ativos e gerencie o histórico de consultas sob demanda de forma performática.</p>
+    
+    <form action="/inserir" method="POST">
+        <h3>Registrar Movimentação</h3>
+        
+        <div class="form-grid">
+            <input type="text" name="etiqueta" placeholder="Nº da Etiqueta (ex: PAT-NOTE-001)" required>
+            <input type="text" name="nome_produto" placeholder="Nome do Equipamento (ex: Notebook)" required>
+            <input type="text" name="marca" placeholder="Marca (ex: Lenovo)" required>
+            <input type="text" name="modelo" placeholder="Modelo (ex: L14)" required>
+        </div>
+
+        <div class="form-grid">
+            <select name="categoria" required>
+                <option value="" disabled selected>Selecione a Categoria</option>
+                <option value="Notebook">Notebook</option>
+                <option value="Monitor">Monitor</option>
+                <option value="Headset">Headset</option>
+                <option value="Mouse">Mouse</option>
+                <option value="Teclado">Teclado</option>
+                <option value="Acessórios">Acessórios / Outros</option>
+            </select>
+            
+            <input type="number" name="quant" placeholder="Quantidade" min="1" required>
+            
+            <select name="tipo_movimentacao" required>
+                <option value="ENTRADA">Entrada no Estoque</option>
+                <option value="SAIDA">Saída / Entrega</option>
+            </select>
+            
+            <select name="status_mov">
+                <option value="Disponível">Disponível / Novo</option>
+                <option value="Em uso">Em uso</option>
+                <option value="Defeito">Com Defeito</option>
+            </select>
+        </div>
+
+        <div class="form-grid">
+            <input type="text" name="numero_serie" placeholder="Número de Série de Fábrica (Opcional)">
+            <input type="text" name="destinatario" placeholder="Destinatário (Nome se for SAÍDA)">
+        </div>
+
+        <textarea name="observacoes" placeholder="Observações adicionais..."></textarea>
+        
+        <button type="submit" class="btn-salvar">Salvar no Banco de Dados</button>
+    </form>
+
+    <hr>
+
+    <h3>🔍 Consultar Dados</h3>
+    <form action="/" method="GET" class="busca-container">
+        <input type="text" name="busca" value="{{ termo_busca }}" class="input-busca" placeholder="Digite uma Etiqueta para filtrar o histórico...">
+        <button type="submit" class="btn-buscar">Buscar</button>
+        
+        <a href="/?todos=true" class="btn-link btn-todos">Ver Listagem Completa</a>
+        
+        {% if termo_busca or listando_todos %}
+            <a href="/" class="btn-link btn-limpar">Ocultar Dados</a>
+        {% endif %}
+    </form>
+
+    {% if saldos %}
+    <div style="margin-top: 30px; background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #17a2b8; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
+        <h3 style="margin-bottom: 15px; color: #17a2b8;">📊 Saldo Atual Disponível (Estoque Líquido)</h3>
+        <div class="tabela-container" style="margin-top: 0;">
+            <table style="background: white;">
+                <thead>
+                    <tr>
+                        <th>Etiqueta</th>
+                        <th>Categoria</th>
+                        <th>Equipamento</th>
+                        <th>Marca/Modelo</th>
+                        <th style="text-align: center; width: 180px;">Quantidade Atual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for saldo in saldos %}
+                    <tr>
+                        <td><strong>{{ saldo[0] }}</strong></td>
+                        <td><span class="badge status-badge">{{ saldo[4] }}</span></td>
+                        <td>{{ saldo[1] }}</td>
+                        <td>{{ saldo[2] }} {{ saldo[3] }}</td>
+                        
+                        {% if saldo[5] < 1 %}
+                            <td class="saldo-zerado">{{ saldo[5] }}</td>
+                        {% else %}
+                            <td class="saldo-positivo">{{ saldo[5] }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <hr>
+    {% endif %}
+
+    <h3>📋 Detalhes das Movimentações (Log)</h3>
+    <div class="tabela-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data/Hora</th>
+                    <th>Etiqueta</th>
+                    <th>Categoria</th>
+                    <th>Equipamento</th>
+                    <th>Marca/Modelo</th>
+                    <th>Qtd</th>
+                    <th>Operação</th>
+                    <th>Status</th>
+                    <th>Destinatário</th>
+                    <th>Nº Série / Obs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linha in movimentacoes %}
+                <tr>
+                    <td style="font-size: 12px; color: #666;">{{ linha[12] }}</td>
+                    <td><strong>{{ linha[1] }}</strong></td>
+                    <td><span class="badge status-badge">{{ linha[5] }}</span></td>
+                    <td>{{ linha[2] }}</td>
+                    <td>{{ linha[3] }} {{ linha[4] }}</td>
+                    <td>{{ linha[6] }}</td>
+                    <td>
+                        <span class="badge {% if linha[7] == 'ENTRADA' %}entrada{% else %}saida{% endif %}">
+                            {{ linha[7] }}
+                        </span>
+                    </td>
+                    <td>{{ linha[8] }}</td>
+                    <td>{{ linha[9] if linha[9] else '-' }}</td>
+                    <td style="font-size: 12px; color: #555;">
+                        <strong>S/N:</strong> {{ linha[10] if linha[10] else '-' }}<br>
+                        <small>{{ linha[11] if linha[11] else '' }}</small>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: #777; padding: 40px; background-color: #fafbfc; border: 1px dashed #ddd;">
+                        {% if termo_busca %}
+                            Nenhum registro encontrado para a etiqueta "<strong>{{ termo_busca }}</strong>".
+                        {% else %}
+                            Painel limpo. Faça uma busca por etiqueta acima ou clique em "Ver Listagem Completa".
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
